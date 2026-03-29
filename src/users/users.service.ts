@@ -14,11 +14,16 @@ export class UsersService {
   ) {}
 
   async findAll(): Promise<User[]> {
-    return this.usersRepository.find();
+    return this.usersRepository.find({
+      relations: ['client'],
+    });
   }
 
   async findOne(id: string): Promise<User | null> {
-    return this.usersRepository.findOneBy({ id });
+    return this.usersRepository.findOne({
+      where: { id },
+      relations: ['client'],
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -30,6 +35,7 @@ export class UsersService {
         'email',
         'password',
         'isActive',
+        'clientId',
         'createdAt',
         'updatedAt',
       ],

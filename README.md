@@ -108,8 +108,28 @@ constructor(private readonly usersService: UsersService) {}
 src/
 ├── main.ts                 # Entry point - bootstraps the application
 ├── app.module.ts           # Root module
-├── app.controller.ts       # Root controller (handles /, /health, /greet, /echo)
+├── app.controller.ts       # Root controller (handles /, /health)
 ├── app.service.ts          # Root service
+│
+├── auth/                   # Authentication module
+│   ├── auth.module.ts      # Main auth module (conditional loading)
+│   ├── common/             # Shared auth code
+│   │   ├── decorators/     # @Public(), @CurrentUser()
+│   │   ├── dto/            # LoginDto
+│   │   └── interfaces/     # AuthUser, AuthResult
+│   ├── jwt/                # JWT authentication (removable)
+│   │   ├── jwt-auth.module.ts
+│   │   ├── jwt-auth.controller.ts
+│   │   ├── jwt-auth.service.ts
+│   │   ├── jwt-auth.guard.ts
+│   │   └── jwt.strategy.ts
+│   └── session/            # Session authentication (removable)
+│       ├── session-auth.module.ts
+│       ├── session-auth.controller.ts
+│       ├── session-auth.service.ts
+│       ├── session-auth.guard.ts
+│       ├── local.strategy.ts
+│       └── session.serializer.ts
 │
 ├── database/
 │   ├── database.module.ts  # Database configuration with TypeORM
@@ -170,6 +190,98 @@ DB_LOGGING=true           # Log SQL queries
 - PostgreSQL: `DB_TYPE=postgres`, `DB_PORT=5432`
 - MySQL: `DB_TYPE=mysql`, `DB_PORT=3306`
 
+## Authentication
+
+This starter includes a dual authentication system supporting both **JWT** and **Session-based** auth. You can easily switch between them or remove one entirely.
+
+### Configuration
+
+Set the auth type in `.env`:
+
+```env
+AUTH_TYPE=jwt                    # Options: 'jwt' or 'session'
+
+# JWT Settings (used when AUTH_TYPE=jwt)
+JWT_SECRET=your-secret-key
+JWT_ACCESS_EXPIRATION=15m
+JWT_REFRESH_EXPIRATION=7d
+
+# Session Settings (used when AUTH_TYPE=session)
+SESSION_SECRET=your-session-secret
+SESSION_MAX_AGE=86400000         # 24 hours in ms
+```
+
+### How It Works
+
+**All routes are protected by default.** Use the `@Public()` decorator to make routes accessible without authentication:
+
+```typescript
+import { Public } from './auth/common/decorators';
+
+@Controller('products')
+export class ProductsController {
+  @Public()
+  @Get()
+  findAll() {
+    // Accessible without authentication
+  }
+
+  @Get(':id')
+  findOne() {
+    // Requires authentication
+  }
+}
+```
+
+### Getting the Current User
+
+Use the `@CurrentUser()` decorator to access the authenticated user:
+
+```typescript
+import { CurrentUser } from './auth/common/decorators';
+import { AuthUser } from './auth/common/interfaces';
+
+@Get('profile')
+getProfile(@CurrentUser() user: AuthUser) {
+  return user;
+}
+
+// Or get a specific property
+@Get('my-email')
+getEmail(@CurrentUser('email') email: string) {
+  return { email };
+}
+```
+
+### JWT Authentication
+
+When `AUTH_TYPE=jwt`, the system uses stateless JWT tokens:
+
+- **Login**: `POST /auth/login` returns `accessToken` and `refreshToken`
+- **Refresh**: `POST /auth/refresh` with `refreshToken` in body
+- **Logout**: `POST /auth/logout` (client discards tokens)
+- **Protected routes**: Include `Authorization: Bearer <token>` header
+
+### Session Authentication
+
+When `AUTH_TYPE=session`, the system uses server-side sessions with cookies:
+
+- **Login**: `POST /auth/login` creates a session and sets a cookie
+- **Logout**: `POST /auth/logout` destroys the session
+- **Protected routes**: Cookie is sent automatically by the browser
+
+### Removing an Auth Strategy
+
+**To use only JWT:**
+1. Delete `src/auth/session/` folder
+2. Set `AUTH_TYPE=jwt` in `.env`
+3. Run `npm uninstall passport-local express-session @types/passport-local @types/express-session`
+
+**To use only Sessions:**
+1. Delete `src/auth/jwt/` folder
+2. Set `AUTH_TYPE=session` in `.env`
+3. Run `npm uninstall @nestjs/jwt passport-jwt @types/passport-jwt`
+
 ## Getting Started
 
 ### Prerequisites
@@ -211,16 +323,22 @@ The app runs on `http://localhost:8001` (configured via `PORT` in `.env`).
 
 ## API Endpoints
 
-### App Endpoints
+### App Endpoints (Public)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | Returns "Hello World!" |
 | GET | `/health` | Health check with timestamp |
-| GET | `/greet/:name` | Returns greeting with name |
-| POST | `/echo` | Echoes back JSON body |
 
-### User Endpoints
+### Auth Endpoints
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/auth/login` | Login with email/password | Public |
+| POST | `/auth/refresh` | Refresh access token (JWT only) | Public |
+| POST | `/auth/logout` | Logout user | Protected |
+
+### User Endpoints (Protected)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -231,16 +349,36 @@ The app runs on `http://localhost:8001` (configured via `PORT` in `.env`).
 ### Example Requests
 
 ```bash
-# Create a user
+# Health check (public)
+curl http://localhost:8001/health
+
+# Create a user (protected - requires auth)
 curl -X POST http://localhost:8001/users \
   -H "Content-Type: application/json" \
-  -d '{"name": "John Doe", "email": "john@example.com", "password": "secret"}'
+  -H "Authorization: Bearer <your-token>" \
+  -d '{"name": "John Doe", "email": "john@example.com", "password": "secret123"}'
 
-# Get all users
-curl http://localhost:8001/users
+# Login (public)
+curl -X POST http://localhost:8001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "john@example.com", "password": "secret123"}'
 
-# Health check
-curl http://localhost:8001/health
+# Response:
+# {
+#   "user": { "id": "...", "email": "john@example.com", "name": "John Doe" },
+#   "accessToken": "eyJhbG...",
+#   "refreshToken": "eyJhbG...",
+#   "expiresIn": 900
+# }
+
+# Access protected route with token
+curl http://localhost:8001/users \
+  -H "Authorization: Bearer eyJhbG..."
+
+# Refresh token
+curl -X POST http://localhost:8001/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "eyJhbG..."}'
 ```
 
 ## Database Migrations
@@ -316,11 +454,11 @@ npm run format       # Format code with Prettier
 
 Once you're comfortable with the basics, explore:
 
-1. **Validation** - Use `class-validator` with DTOs to validate request data
-2. **Guards** - Implement authentication/authorization
-3. **Interceptors** - Transform responses, add logging
-4. **Pipes** - Transform and validate input data
-5. **Exception Filters** - Handle errors gracefully
+1. **Role-Based Access Control** - Add roles to users and create role guards
+2. **Interceptors** - Transform responses, add logging
+3. **Exception Filters** - Handle errors gracefully
+4. **Rate Limiting** - Protect your API from abuse
+5. **Swagger/OpenAPI** - Auto-generate API documentation
 
 ## Resources
 

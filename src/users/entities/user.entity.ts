@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Client } from '../../clients/entities/client.entity';
 
 @Entity('users')
 export class User {
@@ -22,6 +25,13 @@ export class User {
 
   @Column({ type: 'boolean', default: false })
   isActive: boolean;
+
+  @ManyToOne(() => Client, (client) => client.users, { nullable: true })
+  @JoinColumn({ name: 'clientId' })
+  client: Client;
+
+  @Column({ type: 'uuid', nullable: true })
+  clientId: string;
 
   @CreateDateColumn()
   createdAt: Date;
