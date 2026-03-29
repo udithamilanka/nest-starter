@@ -1,98 +1,329 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# NestJS Starter
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A NestJS starter project with TypeORM database support for both PostgreSQL and MySQL.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## What is NestJS?
 
-## Description
+NestJS is a framework for building server-side Node.js applications. It uses TypeScript and combines elements from Object-Oriented Programming, Functional Programming, and Functional Reactive Programming.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Think of it as Angular for the backend - it provides structure, organization, and powerful features out of the box.
 
-## Project setup
+## Core Concepts
 
-```bash
-$ npm install
+### 1. Modules
+
+Modules are the basic building blocks of a NestJS application. Every app has at least one module - the root module (`AppModule`).
+
+```typescript
+@Module({
+  imports: [DatabaseModule, UsersModule],  // Other modules this module depends on
+  controllers: [AppController],             // Controllers that handle HTTP requests
+  providers: [AppService],                  // Services that contain business logic
+})
+export class AppModule {}
 ```
 
-## Compile and run the project
+**Key points:**
+- Modules organize your code into cohesive blocks
+- Each feature should have its own module (e.g., `UsersModule`, `AuthModule`)
+- The `@Module()` decorator provides metadata that NestJS uses to organize the application
 
-```bash
-# development
-$ npm run start
+### 2. Controllers
 
-# watch mode
-$ npm run start:dev
+Controllers handle incoming HTTP requests and return responses. They're like the "routes" of your application.
 
-# production mode
-$ npm run start:prod
+```typescript
+@Controller('users')  // Base route: /users
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Get()              // GET /users
+  findAll() {
+    return this.usersService.findAll();
+  }
+
+  @Get(':id')         // GET /users/:id
+  findOne(@Param('id') id: string) {
+    return this.usersService.findOne(id);
+  }
+
+  @Post()             // POST /users
+  create(@Body() data: CreateUserDto) {
+    return this.usersService.create(data);
+  }
+}
 ```
 
-## Run tests
+**Common decorators:**
+- `@Get()`, `@Post()`, `@Put()`, `@Delete()` - HTTP methods
+- `@Param('id')` - Extract route parameters
+- `@Body()` - Extract request body
+- `@Query()` - Extract query string parameters
 
-```bash
-# unit tests
-$ npm run test
+### 3. Services (Providers)
 
-# e2e tests
-$ npm run test:e2e
+Services contain your business logic. They're injected into controllers using Dependency Injection.
 
-# test coverage
-$ npm run test:cov
+```typescript
+@Injectable()
+export class UsersService {
+  constructor(
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
+  ) {}
+
+  async findAll(): Promise<User[]> {
+    return this.usersRepository.find();
+  }
+
+  async create(data: Partial<User>): Promise<User> {
+    const user = this.usersRepository.create(data);
+    return this.usersRepository.save(user);
+  }
+}
 ```
 
-## Deployment
+**Key points:**
+- `@Injectable()` marks a class as a provider that can be injected
+- Services are where you put database operations, business rules, external API calls, etc.
+- Controllers should be thin - they just receive requests and delegate to services
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### 4. Dependency Injection (DI)
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+NestJS has a built-in DI container. When you add a parameter to a constructor, NestJS automatically injects an instance.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+```typescript
+// NestJS sees this constructor and automatically provides an instance of UsersService
+constructor(private readonly usersService: UsersService) {}
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Why DI matters:**
+- Makes testing easier (you can inject mock services)
+- Loose coupling between classes
+- NestJS manages the lifecycle of objects for you
+
+## Project Structure
+
+```
+src/
+├── main.ts                 # Entry point - bootstraps the application
+├── app.module.ts           # Root module
+├── app.controller.ts       # Root controller (handles /, /health, /greet, /echo)
+├── app.service.ts          # Root service
+│
+├── database/
+│   ├── database.module.ts  # Database configuration with TypeORM
+│   ├── data-source.ts      # TypeORM CLI configuration (for migrations)
+│   └── migrations/         # Database migration files
+│
+└── users/
+    ├── users.module.ts     # Users feature module
+    ├── users.controller.ts # Handles /users routes
+    ├── users.service.ts    # User business logic
+    └── entities/
+        └── user.entity.ts  # User database entity/model
+```
+
+## How the Database Works
+
+### TypeORM
+
+TypeORM is an ORM (Object-Relational Mapper) that lets you work with databases using TypeScript classes instead of raw SQL.
+
+### Entities
+
+Entities are classes that map to database tables:
+
+```typescript
+@Entity('users')  // Table name
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  name: string;
+
+  @Column({ type: 'varchar', length: 255, unique: true })
+  email: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+}
+```
+
+### Database Configuration
+
+The database is configured in `src/database/database.module.ts`. It reads from environment variables:
+
+```env
+DB_TYPE=postgres          # 'postgres' or 'mysql'
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+DB_DATABASE=nest_starter
+DB_SYNCHRONIZE=true       # Auto-sync schema (dev only!)
+DB_LOGGING=true           # Log SQL queries
+```
+
+**Switching databases:** Just change `DB_TYPE` and `DB_PORT` in `.env`:
+- PostgreSQL: `DB_TYPE=postgres`, `DB_PORT=5432`
+- MySQL: `DB_TYPE=mysql`, `DB_PORT=3306`
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v18+)
+- PostgreSQL or MySQL database
+
+### Installation
+
+```bash
+npm install
+```
+
+### Database Setup
+
+1. Create the database:
+   ```bash
+   # PostgreSQL
+   createdb nest_starter
+
+   # MySQL
+   mysql -u root -p -e "CREATE DATABASE nest_starter;"
+   ```
+
+2. Update `.env` with your database credentials
+
+### Running the App
+
+```bash
+# Development (with hot reload)
+npm run start:dev
+
+# Production
+npm run build
+npm run start:prod
+```
+
+The app runs on `http://localhost:8001` (configured via `PORT` in `.env`).
+
+## API Endpoints
+
+### App Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Returns "Hello World!" |
+| GET | `/health` | Health check with timestamp |
+| GET | `/greet/:name` | Returns greeting with name |
+| POST | `/echo` | Echoes back JSON body |
+
+### User Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/users` | Get all users |
+| GET | `/users/:id` | Get user by ID |
+| POST | `/users` | Create a new user |
+
+### Example Requests
+
+```bash
+# Create a user
+curl -X POST http://localhost:8001/users \
+  -H "Content-Type: application/json" \
+  -d '{"name": "John Doe", "email": "john@example.com", "password": "secret"}'
+
+# Get all users
+curl http://localhost:8001/users
+
+# Health check
+curl http://localhost:8001/health
+```
+
+## Database Migrations
+
+Migrations are version-controlled database schema changes. Use them in production instead of `DB_SYNCHRONIZE=true`.
+
+```bash
+# Generate a migration from entity changes
+npm run migration:generate src/database/migrations/CreateUsersTable
+
+# Run pending migrations
+npm run migration:run
+
+# Revert last migration
+npm run migration:revert
+```
+
+## Request Lifecycle
+
+Here's what happens when a request hits your NestJS app:
+
+```
+HTTP Request
+     │
+     ▼
+┌─────────────┐
+│  Middleware │  (logging, auth checks, etc.)
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│   Guards    │  (authorization)
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│ Interceptors│  (transform request/response)
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│   Pipes     │  (validation, transformation)
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│ Controller  │  (route handler)
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│   Service   │  (business logic)
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│  Database   │  (via TypeORM)
+└─────────────┘
+```
+
+## Common Commands
+
+```bash
+npm run start:dev    # Start with hot reload
+npm run build        # Compile TypeScript
+npm run lint         # Run ESLint
+npm run test         # Run unit tests
+npm run test:e2e     # Run e2e tests
+npm run format       # Format code with Prettier
+```
+
+## Next Steps
+
+Once you're comfortable with the basics, explore:
+
+1. **Validation** - Use `class-validator` with DTOs to validate request data
+2. **Guards** - Implement authentication/authorization
+3. **Interceptors** - Transform responses, add logging
+4. **Pipes** - Transform and validate input data
+5. **Exception Filters** - Handle errors gracefully
 
 ## Resources
 
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- [NestJS Documentation](https://docs.nestjs.com)
+- [TypeORM Documentation](https://typeorm.io)
+- [NestJS Discord](https://discord.gg/nestjs)
