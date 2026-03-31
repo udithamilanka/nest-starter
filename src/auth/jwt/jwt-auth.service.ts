@@ -36,7 +36,7 @@ export class JwtAuthService {
     };
   }
 
-  async login(user: AuthUser): Promise<AuthResult> {
+  login(user: AuthUser): Promise<AuthResult> {
     const payload = { sub: user.id, email: user.email };
 
     const accessToken = this.jwtService.sign(payload);
@@ -44,18 +44,18 @@ export class JwtAuthService {
       expiresIn: this.configService.get('JWT_REFRESH_EXPIRATION', '7d'),
     } as JwtSignOptions);
 
-    return {
+    return Promise.resolve({
       user,
       accessToken,
       refreshToken,
       expiresIn: 900,
       message: 'Login successful',
-    };
+    });
   }
 
   async refreshToken(token: string): Promise<AuthResult> {
     try {
-      const payload = this.jwtService.verify(token);
+      const payload = this.jwtService.verify<{ sub: string }>(token);
       const user = await this.usersService.findOne(payload.sub);
 
       if (!user || !user.isActive) {
