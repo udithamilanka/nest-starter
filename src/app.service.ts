@@ -12,12 +12,4 @@ export class AppService {
       timestamp: new Date().toISOString(),
     };
   }
-
-  greet(name: string): string {
-    return `Hello, ${name}!`;
-  }
-
-  echo(data: Record<string, unknown>): { received: Record<string, unknown> } {
-    return { received: data };
-  }
 }
